@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iARK · 客户税务管辖区分析</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F7F8FA; --white: #fff; --ink: #1a1a2e; --ink2: #444;
+  --muted: #888; --border: #E8EAEE;
+  --red: #A32D2D; --red-bg: #FCEBEB;
+  --green: #27500A; --green-bg: #EAF3DE;
+  --amber: #633806; --amber-bg: #FAEEDA;
+  --blue: #0C447C; --blue-bg: #E6F1FB;
+  --purple: #3C3489; --purple-bg: #EEEDFE;
+  --teal: #085041; --teal-bg: #E1F5EE;
+  --radius: 12px; --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans SC', sans-serif; background: var(--bg); color: var(--ink); font-size: 13px; }
+
+/* ── header ── */
+.page-header { background: var(--ink); color: white; padding: 28px 32px 24px; }
+.page-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.page-header p  { font-size: 12px; color: rgba(255,255,255,.45); }
+
+/* ── tabs（主 TAB 用隐藏 radio + label，不依赖 JS，兼容企微 Android WebView）── */
+.main-tab-i {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.tab-nav { background: var(--white); border-bottom: 1px solid var(--border); display: flex; overflow-x: auto; padding: 0 32px; -webkit-overflow-scrolling: touch; }
+.tab-btn {
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: color .15s;
+  -webkit-tap-highlight-color: rgba(0,0,0,.08);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+button.tab-btn { font-family: inherit; }
+label.tab-btn { display: inline-block; }
+.tab-btn:hover { color: var(--ink); }
+#main-tab-sg:checked ~ .tab-nav label[for="main-tab-sg"],
+#main-tab-mg:checked ~ .tab-nav label[for="main-tab-mg"],
+#main-tab-crs:checked ~ .tab-nav label[for="main-tab-crs"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* ── pane ── */
+.pane {
+  display: none !important;
+  padding: 28px 32px 60px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+#main-tab-sg:checked ~ #tab-sg,
+#main-tab-mg:checked ~ #tab-mg,
+#main-tab-crs:checked ~ #tab-crs {
+  display: block !important;
+}
+
+/* ── summary cards ── */
+.cards { display: grid; gap: 12px; margin-bottom: 24px; }
+.cards-4 { grid-template-columns: repeat(4,1fr); }
+.cards-3 { grid-template-columns: repeat(3,1fr); }
+.card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
+.card .lbl { font-size: 11px; color: var(--muted); margin-bottom: 5px; line-height: 1.4; }
+.card .val { font-size: 22px; font-weight: 700; }
+.card .sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── HK special box ── */
+.hk-box { background: var(--white); border: 2px solid #378ADD; border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+.hk-box .hk-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.hk-box .hk-desc { font-size: 12px; color: var(--ink2); line-height: 1.7; margin-bottom: 12px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; }
+.tag-blue { background: var(--blue-bg); color: var(--blue); }
+.tag-green { background: var(--green-bg); color: var(--green); }
+.tag-red { background: var(--red-bg); color: var(--red); }
+.tag-amber { background: var(--amber-bg); color: var(--amber); }
+.tag-purple { background: var(--purple-bg); color: var(--purple); }
+.tag-teal { background: var(--teal-bg); color: var(--teal); }
+
+/* ── section heading ── */
+.sec { display: flex; align-items: center; gap: 8px; margin: 20px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.sec-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sec-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.sec-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+/* ── filter ── */
+.filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.fbtn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 13px;
+  border-radius: 20px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--white);
+  -webkit-tap-highlight-color: rgba(0,0,0,.08);
+  touch-action: manipulation;
+}
+.fbtn.on { background: var(--ink); color: var(--white); border-color: var(--ink); }
+
+/* ── table ── */
+.tbl-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; background: var(--white); }
+thead th { background: #F1F2F5; font-size: 11px; font-weight: 700; color: var(--muted); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody td { padding: 11px 12px; vertical-align: top; border-bottom: 1px solid var(--border); color: var(--ink2); line-height: 1.6; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #FAFBFC; }
+.hidden { display: none; }
+
+/* ── country cell ── */
+.cname { font-weight: 700; white-space: nowrap; color: var(--ink); }
+.num { font-weight: 700; color: var(--ink); }
+
+/* ── CRS badge ── */
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; display: inline-block; }
+.badge-red    { background: var(--red-bg);    color: var(--red); }
+.badge-green  { background: var(--green-bg);  color: var(--green); }
+.badge-blue   { background: var(--blue-bg);   color: var(--blue); }
+.badge-amber  { background: var(--amber-bg);  color: var(--amber); }
+
+/* ── tax rate rows ── */
+.rate-list { display: flex; flex-direction: column; gap: 3px; }
+.rate-item { display: flex; align-items: baseline; gap: 8px; }
+.rate-type { font-size: 11px; color: var(--muted); min-width: 72px; flex-shrink: 0; }
+.rate-val  { font-size: 12px; font-weight: 700; }
+.rv-exempt { color: #27500A; }
+.rv-mid    { color: #633806; }
+.rv-high   { color: #A32D2D; }
+.rv-pierce { color: #3C3489; font-style: italic; }
+
+/* ── combo tags ── */
+.ctag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; display: inline-block; margin: 2px 2px; white-space: nowrap; }
+.ctag-cn { background: var(--red-bg);    color: var(--red); }
+.ctag-hk { background: var(--blue-bg);   color: var(--blue); }
+.ctag-tw { background: var(--green-bg);  color: var(--green); }
+.ctag-of { background: var(--purple-bg); color: var(--purple); }
+.ctag-ot { background: #F1EFE8;          color: #5F5E5A; }
+
+/* ── note ── */
+.note { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 16px; font-size: 12px; color: var(--ink2); line-height: 1.75; }
+.note strong { color: var(--ink); }
+
+@media (max-width: 640px) {
+  .pane { padding: 16px; }
+  .cards-4, .cards-3 { grid-template-columns: repeat(2,1fr); }
+}
+
+/* CRS search & detail */
+.crs-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.crs-search-input { flex:1; min-width:200px; max-width:420px; padding:10px 14px; font-size:13px; border:1px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; background:var(--white); }
+.crs-search-input:focus { outline:none; border-color:var(--ink); }
+.crs-search-input::placeholder { color:#aaa; }
+.crs-tax-detail { font-size:11.5px; line-height:1.65; color:var(--ink2); }
+.crs-tax-detail .d-line { margin:4px 0; }
+.crs-tax-detail .d-line:first-child { margin-top:0; }
+.crs-tax-detail .d-line:last-child { margin-bottom:0; }
+.crs-tax-detail strong { color:var(--ink); font-weight:600; }
+
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>iARK · 客户税务管辖区分析</h1>
+  <p>数据来源：客户填报税务管辖区 · 总客户数 12,866 人 · 37个独立税务管辖区</p>
+</div>
+
+<input type="radio" name="main-tab" id="main-tab-sg" class="main-tab-i" checked>
+<input type="radio" name="main-tab" id="main-tab-mg" class="main-tab-i">
+<input type="radio" name="main-tab" id="main-tab-crs" class="main-tab-i">
+
+<div class="tab-nav" id="main-tab-nav">
+  <label for="main-tab-sg" class="tab-btn">单一税务管辖区（12,333人）</label>
+  <label for="main-tab-mg" class="tab-btn">多个税务管辖区（533人）</label>
+  <label for="main-tab-crs" class="tab-btn">CRS地区及税务政策</label>
+</div>
+
+<!-- ═══════ 单一管辖区 ═══════ -->
+<div class="pane" id="tab-sg">
+
+  <div class="cards cards-4">
+    <div class="card"><div class="lbl">单一管辖区客户</div><div class="val">12,333</div><div class="sub">29种管辖区</div></div>
+    <div class="card"><div class="lbl">在CRS内</div><div class="val" style="color:#A32D2D">10,867</div><div class="sub">88.1%</div></div>
+    <div class="card"><div class="lbl">香港（CRS·属地免税）</div><div class="val" style="color:#378ADD">1,232</div><div class="sub">10.0%</div></div>
+    <div class="card"><div class="lbl">不在CRS</div><div class="val" style="color:#27500A">159</div><div class="sub">台湾158 · 阿尔及利亚1</div></div>
+  </div>
+
+  <div class="hk-box" style="margin-bottom:16px;">
+    <div class="hk-title">🇭🇰 香港 · 1,232人 · 境外利息 / 股息 / 资本利得：全部免税</div>
+    <div class="hk-desc" style="margin-bottom:0;">属地征税，只对香港来源收入征税。持有iARK账户产生的境外利息、股息及资本利得，对香港税务居民无任何税务负担。</div>
+  </div>
+
+  <div class="filter" id="sg-filter-bar">
+    <button type="button" class="fbtn on" data-filter="all">全部</button>
+    <button type="button" class="fbtn" data-filter="crs">在CRS内</button>
+    <button type="button" class="fbtn" data-filter="nc">不在CRS</button>
+  </div>
+
+  <div class="tbl-wrap">
+  <table id="t-sg">
+  <thead><tr>
+    <th>税务管辖区</th>
+    <th>客户数</th>
+    <th>CRS状态</th>
+    <th style="min-width:260px;">境外投资所得 · 资本利得 · 境外收入纳税标准</th>
+    <th style="min-width:160px;">关键说明</th>
+  </tr></thead>
+  <tbody>
+
+  <tr data-f="crs">
+    <td class="cname">🇨🇳 中国大陆</td><td class="num">10,523</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">20%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-high">20%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-high">20%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，须就全部境外投资收益申报。2022–2024年为税局重点核查期，iARK账户收益须在次年3月–6月申报。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇭🇰 香港</td><td class="num">1,232</td>
+    <td><span class="badge badge-blue">CRS · 属地免税</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">免税（无资本利得税）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">属地征税，境外投资收益全部免税。iARK账户收益对香港税务居民无税务负担。</td>
+  </tr>
+
+  <tr data-f="nc">
+    <td class="cname">🇹🇼 台湾</td><td class="num">158</td>
+    <td><span class="badge badge-green">不在港版CRS</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外所得</span><span class="rate-val rv-mid">逾100万台币：最低税负制 20%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">分离课税 28%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">纳入最低税负制计算</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">香港不会向台湾交换账户信息，CRS层面零风险。台湾居民自行申报义务依然存在。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇰🇾 开曼群岛</td><td class="num">128</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">本地免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">本地免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">本地无税</span></div>
+      <div class="rate-item"><span class="rate-type">穿透控制人</span><span class="rate-val rv-pierce">按控制人居民国税率</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">本地无所得税，但CRS对消极架构穿透至实际控制人居民国，中国居民控制人须按内地20%申报。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇸🇬 新加坡</td><td class="num">84</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">无资本利得税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">属地征税，境外投资收益全部免税。iARK账户收益对新加坡税务居民几乎无税务负担。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇲🇴 澳门</td><td class="num">60</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">无资本利得税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">属地征税，境外投资收益全部免税，税制简单。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇨🇦 加拿大</td><td class="num">32</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">并入所得；联邦+省合并边际约 20%–53%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">多按普通收入适用合并边际；合格境内股息可股息抵免</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">50%纳入×边际；对利得有效税负约为边际之半</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">税务居民须就全球所得申报。适用税阶取决于<strong>联邦 + 常驻省/地区</strong>；中低税阶合并边际常见约两成至三成余，高税阶可达约四成至逾五成（因省而异）。源国已预提一般可外国税抵免；中加协定协调双重征税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇦🇺 澳大利亚</td><td class="num">24</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">最高45%（边际税率）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-high">最高45%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">持有满1年享50%折扣，有效税率最高约22.5%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，税率较高，近年核查趋严。有税收抵免制度避免双重征税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇲🇾 马来西亚</td><td class="num">23</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">汇入须申报，税率0%–30%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">上市证券：免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">上市证券：免税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">2022年起扩大境外汇入被动收入征税范围，税制仍在调整中，建议持续关注。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇯🇵 日本</td><td class="num">10</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">20.315%（分离课税）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">20.315%（分离课税）</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">20.315%（分离课税）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，上市证券境外收益可选20.315%分离课税。非永久居民（入籍未满5年）仅就汇回日本部分征税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🏝️ 圣基茨和尼维斯</td><td class="num">7</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">无个人所得税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">无个人所得税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">无资本利得税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">无个人所得税，境外收益全部免税。若仍为中国税务居民，内地申报义务依然存在。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇬🇷 希腊</td><td class="num">7</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">15%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">预扣税 5%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">15%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">设有非定居居民制度，高净值人士可选每年缴10万欧元统一税，享受境外所得免税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🏝️ 英属维尔京群岛</td><td class="num">6</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">本地免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">本地免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">本地无税</span></div>
+      <div class="rate-item"><span class="rate-type">穿透控制人</span><span class="rate-val rv-pierce">按控制人居民国税率</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">本地无所得税，CRS对消极架构穿透至实际控制人居民国申报。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇦🇪 阿联酋</td><td class="num">6</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">0%（无个人所得税）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">0%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">0%（无资本利得税）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">个人无所得税，无资本利得税，境外投资收益全部免税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇳🇿 新西兰</td><td class="num">5</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">纳入综合所得 10.5%–39%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">纳入综合所得 10.5%–39%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">大多数情况免税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，但资本利得大多不征税。新移民享4年过渡期，期间境外收入免税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇹🇭 泰国</td><td class="num">5</td>
+    <td><span class="badge badge-amber">CRS 2026</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">汇入泰国须申报，税率0%–35%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">汇入泰国须申报，预扣税10%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">汇入泰国须申报，税率0%–35%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">2026年加入CRS，首份申报覆盖2025全年。2024年起境外收入汇入泰国须申报，需提前关注合规。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇩🇲 多米尼克</td><td class="num">4</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">免税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">属地征税，境外收益免税。若仍为中国税务居民，内地申报义务依然存在。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇲🇹 马耳他</td><td class="num">4</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">留存境外：免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">留存境外：免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">留存境外：免税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">非定居居民采用汇回制，境外收益留存境外可免税，仅汇入马耳他部分须申报。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇬🇧 英国</td><td class="num">3</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">20%–45%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-high">8.75%–39.35%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-high">18%–28%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，2025年起取消非定居居民制度，须全额申报境外收益，税负较重。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇮🇪 爱尔兰</td><td class="num">3</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">20%–40%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-high">20%预扣</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-high">33%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，资本利得税率33%较高。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🏝️ 马绍尔群岛</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">无个人所得税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">无个人所得税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">无资本利得税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">无个人所得税，消极架构存在穿透至控制人居民国的风险。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇵🇹 葡萄牙</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">28%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">28%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">28%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，境外投资收益统一28%。NHR优惠制度已于2024年底终止。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇩🇪 德国</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">26.375%（含5.5%附加税）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">26.375%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">26.375%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，境外投资收益统一适用资本收益税26.375%。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇫🇷 法国</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-high">30%（含17.2%社保费）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-high">30%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-high">30%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，境外投资收益统一适用30%统一税（Flat Tax）。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇳🇴 挪威</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">22%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">约37.84%（含调整系数）</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">约37.84%（含调整系数）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，须申报境外全部投资收益。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇹🇷 土耳其</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">15%–40%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">15%预扣</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">0%–25%（视持有期）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，须申报境外全部投资收益。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇨🇿 捷克</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2018</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">15%</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">15%</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">15%（持有3年以上免税）</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，资本利得持有超3年可免税，税率相对适中。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🌺 萨摩亚</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-exempt">免税</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-exempt">免税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">属地征税，境外收益全部免税。</td>
+  </tr>
+
+  <tr data-f="crs">
+    <td class="cname">🇵🇭 菲律宾</td><td class="num">1</td>
+    <td><span class="badge badge-red">CRS 2021</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外利息</span><span class="rate-val rv-mid">0%–35%（综合所得税率）</span></div>
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">10%预扣</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">上市证券：0.6%交易税</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">全球征税，上市证券资本利得已改为0.6%交易税，税率相对清晰。</td>
+  </tr>
+
+  <tr data-f="nc">
+    <td class="cname">🇩🇿 阿尔及利亚</td><td class="num">1</td>
+    <td><span class="badge badge-green">不在港版CRS</span></td>
+    <td><div class="rate-list">
+      <div class="rate-item"><span class="rate-type">境外股息</span><span class="rate-val rv-mid">15%预扣</span></div>
+      <div class="rate-item"><span class="rate-type">境外资本利得</span><span class="rate-val rv-mid">纳入综合所得 0%–35%</span></div>
+    </div></td>
+    <td style="font-size:12px;color:var(--ink2);">不在港版CRS，香港不会向其交换账户信息，CRS层面零风险。</td>
+  </tr>
+
+  </tbody></table></div>
+  <div class="note">税率为一般适用标准，实际税务义务因个人居住年数、所得金额及双边税收协议而有所差异。建议客户就个人具体情况咨询专业税务顾问。</div>
+</div>
+
+
+<!-- ═══════ 多个管辖区 ═══════ -->
+<div class="pane" id="tab-mg">
+
+  <div class="cards cards-3">
+    <div class="card"><div class="lbl">多管辖区客户合计</div><div class="val">533</div><div class="sub">60种组合</div></div>
+    <div class="card"><div class="lbl">含中国大陆的组合</div><div class="val" style="color:#A32D2D">404</div><div class="sub">占多管辖区客户75.8%</div></div>
+    <div class="card"><div class="lbl">含香港（不含中国）的组合</div><div class="val" style="color:#378ADD">94</div><div class="sub">整体境外收益税负较低</div></div>
+  </div>
+
+  <div class="sec"><div class="sec-dot" style="background:#E24B4A"></div><span class="sec-title">含中国大陆的组合（404人）</span></div>
+  <p style="font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:12px;">中国全球征税覆盖iARK账户全部收益，无论另一管辖区税制多宽松，境外<strong>利息/股息/资本利得均须按内地20%</strong>向中国税局申报。</p>
+
+  <div class="tbl-wrap" style="margin-bottom:24px;">
+  <table>
+  <thead><tr>
+    <th>税务管辖区组合</th><th>客户数</th>
+    <th style="min-width:280px;">境外投资所得纳税要点</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-hk">香港</span></td><td class="num">209</td><td style="font-size:12px;color:var(--ink2);">内地全球征税（境外利息/股息/资本利得20%）覆盖香港账户收益；香港属地免税不抵消内地申报义务，须向内地税局申报iARK账户全部收益。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-of">英属维尔京群岛</span></td><td class="num">79</td><td style="font-size:12px;color:var(--ink2);">BVI本地无税，但中国全球征税+CRS穿透双重叠加，BVI架构中的境外收益须按内地20%申报。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-ot">加拿大</span></td><td class="num">19</td><td style="font-size:12px;color:var(--ink2);">两国均全球征税，须分别申报。内地财产性收益常见按 20% 等；加拿大对利息及多数境外股息一般按<strong>联邦+省合并边际</strong>纳税（常见约 20% 起至高约 50%+，因省与税阶而异），资本利得按 50% 计入应税所得。中加税收协定可抵免与协调，避免双重征税，两国申报义务仍分别存在。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-tw">台湾</span></td><td class="num">19</td><td style="font-size:12px;color:var(--ink2);">内地全球征税20%，须向内地申报全部境外收益。台湾海外所得逾100万台币另须申报最低税负制20%。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-ot">澳大利亚</span></td><td class="num">12</td><td style="font-size:12px;color:var(--ink2);">两国均全球征税，须分别申报。澳大利亚税率较高（最高45%），需通过税收协议抵免，税务安排复杂。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-ot">新加坡</span></td><td class="num">9</td><td style="font-size:12px;color:var(--ink2);">新加坡属地免税，不产生当地税负，但内地全球征税20%义务依然存在，须向内地申报iARK账户收益。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-ot">萨摩亚/塞舌尔/澳门/马绍尔群岛（合计）</span></td><td class="num">31</td><td style="font-size:12px;color:var(--ink2);">上述管辖区境外收益均免税或无本地税，但内地全球征税20%义务依然存在，须向内地申报。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-hk">香港</span><span class="ctag ctag-of">英属维尔京群岛</span></td><td class="num">6</td><td style="font-size:12px;color:var(--ink2);">三重管辖区，内地20%+BVI穿透+香港账户叠加，境外收益须全额向内地申报，合规复杂度最高。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-of">开曼群岛</span></td><td class="num">6</td><td style="font-size:12px;color:var(--ink2);">开曼本地无税，CRS穿透+内地全球征税20%叠加，境外收益须按内地20%申报。</td></tr>
+    <tr><td><span class="ctag ctag-cn">中国大陆</span><span class="ctag ctag-ot">英国</span></td><td class="num">5</td><td style="font-size:12px;color:var(--ink2);">两国均全球征税，须分别申报。英国境外资本利得18%–28%，内地20%，需通过税收协议协调抵免。</td></tr>
+    <tr><td style="font-size:12px;color:var(--muted);" colspan="3">其他含中国大陆的组合（各1–3人）：中国+日本（20.315%）、中国+德国（26.375%）、中国+韩国等，均须按内地20%申报境外收益，并根据各国税收协议抵免。</td></tr>
+  </tbody></table></div>
+
+  <div class="sec"><div class="sec-dot" style="background:#378ADD"></div><span class="sec-title">含香港但不含中国大陆的组合（94人）</span></div>
+  <div class="tbl-wrap" style="margin-bottom:24px;">
+  <table>
+  <thead><tr>
+    <th>税务管辖区组合</th><th>客户数</th>
+    <th style="min-width:280px;">境外投资所得纳税要点</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-of">英属维尔京群岛</span></td><td class="num">59</td><td style="font-size:12px;color:var(--ink2);">香港境外收益免税，BVI本地无税，整体境外投资收益税负极低；需关注BVI架构穿透风险。</td></tr>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-tw">台湾</span></td><td class="num">10</td><td style="font-size:12px;color:var(--ink2);">香港境外收益免税，台湾不在港版CRS。台湾海外所得逾100万台币适用最低税负制20%，iARK账户收益整体税负最低。</td></tr>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-ot">新加坡</span></td><td class="num">5</td><td style="font-size:12px;color:var(--ink2);">两地均属地征税，境外投资收益均免税，iARK账户收益几乎无任何税务负担。</td></tr>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-of">开曼群岛</span></td><td class="num">4</td><td style="font-size:12px;color:var(--ink2);">香港境外收益免税，开曼本地无税，整体税负极低。需关注开曼架构穿透风险。</td></tr>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-ot">澳大利亚</span></td><td class="num">3</td><td style="font-size:12px;color:var(--ink2);">须向澳大利亚申报iARK账户收益（边际税率最高45%），香港本地免税，但澳大利亚申报义务存在。</td></tr>
+    <tr><td><span class="ctag ctag-hk">香港</span><span class="ctag ctag-ot">澳门 / 塞舌尔 / 萨摩亚</span></td><td class="num">9</td><td style="font-size:12px;color:var(--ink2);">上述管辖区均属地征税或境外收益免税，iARK账户收益几乎无税务负担。</td></tr>
+    <tr><td style="font-size:12px;color:var(--muted);" colspan="3">其他含香港的组合（各1人）：香港+日本、香港+英国等，需关注另一管辖区对境外收益的申报要求。</td></tr>
+  </tbody></table></div>
+
+  <div class="sec"><div class="sec-dot" style="background:#888"></div><span class="sec-title">其他组合（35人）· 不含中国大陆/香港</span></div>
+  <div class="tbl-wrap">
+  <table>
+  <thead><tr>
+    <th>税务管辖区组合</th><th>客户数</th>
+    <th style="min-width:280px;">境外投资所得纳税要点</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><span class="ctag ctag-of">英属维尔京群岛</span><span class="ctag ctag-tw">台湾</span></td><td class="num">7</td><td style="font-size:12px;color:var(--ink2);">BVI本地无税，台湾不在港版CRS，台湾逾100万台币须申报最低税负20%，整体CRS压力最小。</td></tr>
+    <tr><td><span class="ctag ctag-of">英属维尔京群岛</span><span class="ctag ctag-ot">新加坡</span></td><td class="num">4</td><td style="font-size:12px;color:var(--ink2);">新加坡境外收益免税，BVI无本地税，整体境外投资收益税负极低。</td></tr>
+    <tr><td><span class="ctag ctag-ot">萨摩亚</span><span class="ctag ctag-tw">台湾</span></td><td class="num">3</td><td style="font-size:12px;color:var(--ink2);">两地境外收益均免税或低税，台湾不在港版CRS，整体税务负担最轻的组合之一。</td></tr>
+    <tr><td><span class="ctag ctag-of">英属维尔京群岛</span><span class="ctag ctag-ot">澳门</span></td><td class="num">3</td><td style="font-size:12px;color:var(--ink2);">澳门境外收益免税，BVI无本地税，整体税负极低。</td></tr>
+    <tr><td style="font-size:12px;color:var(--muted);" colspan="3">其他小组合（各1人）：塞浦路斯+塞舌尔、安圭拉+阿联酋等，均以低税或免税管辖区为主。</td></tr>
+  </tbody></table></div>
+
+  <div class="note">
+    <strong>多管辖区核心提示：</strong>①含中国大陆的组合（404人），无论另一管辖区税制多宽松，境外利息/股息/资本利得均须按内地20%向中国税局申报；②含香港不含中国大陆的组合（94人），香港属地免税为主，整体境外收益税负较低；③拥有多国税务居民身份的客户，建议寻求专业跨境税务顾问进行系统规划。<br><br>
+    <strong>免责说明：</strong>本表仅供内部参考，各国税法复杂且持续更新，具体税务义务因个人实际情况而异，建议客户就个人具体情况咨询专业税务顾问。
+  </div>
+</div>
+
+<!-- ═══════ CRS地区及税务政策 ═══════ -->
+<div class="pane" id="tab-crs">
+    <p style="font-size:12px;color:var(--ink2);line-height:1.75;margin-bottom:12px;padding:12px 14px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);">
+    <strong>阅读说明：</strong>下列三行针对「客户为<strong>该税务管辖区税务居民</strong>，且投资位于<strong>香港等地</strong>」时，在<strong>客户所属管辖区</strong>就<strong>境外利息、境外股息/分红、境外资本利得</strong>的常见处理与<strong>参考税率</strong>（香港侧通常预扣有限；最终以居民国税法与中港税收协定为准）。
+  </p>
+  <p style="font-size:12px;color:var(--ink2);line-height:1.75;margin-bottom:16px;">
+    下列名单与「首份资料所属期间」与香港税务局公布之《税务条例》附表17E第1部<strong>申报税务管辖区</strong>一致（用于与香港自动交换财务账户资料，CRS）：
+    <a href="https://www.ird.gov.hk/chi/tax/aeoi/rpt_jur.htm" target="_blank" rel="noopener">https://www.ird.gov.hk/chi/tax/aeoi/rpt_jur.htm</a>。
+    表中「CRS申报起始」指从该<strong>历年起</strong>，香港申报财务机构须就该管辖区税务居民向香港税局申报账户资料（见该局网页注1）；不等于各地加入全球CRS体系之日。
+    最后一栏列示<strong>参考税率及要点</strong>（境外利息、股息、资本利得等），具体有效税负取决于居民身份、双边协定与申报年度。
+  </p>
+  <div class="crs-toolbar">
+    <label for="crs-search" style="font-size:10px;color:var(--muted);font-weight:600;">搜索</label>
+    <input type="search" id="crs-search" class="crs-search-input" placeholder="输入税务管辖区名称，如：中国、新加坡、开曼…" autocomplete="off" />
+    <span id="crs-search-count" style="font-size:11px;color:var(--muted);"></span>
+  </div>
+  <div class="tbl-wrap">
+  <table id="t-crs">
+  <thead><tr>
+    <th>税务管辖区</th>
+    <th>港版CRS申报起始</th>
+    <th>首份资料所属期间</th>
+    <th style="min-width:340px;">香港等地投资收益 · 在居民国纳税参考</th>
+  </tr></thead>
+  <tbody>
+                    <tr><td class="cname">安提瓜和巴布达</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">阿根廷</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：金融产品分离税与累进 <strong>5%–35%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得按通货膨胀调整。</div></div></td></tr>
+    <tr><td class="cname">澳大利亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入一般所得；边际 <strong>0%–45%</strong>（另可能 Medicare）。</div><div class="d-line"><strong>境外股息/分红</strong>：外国股息若已扣预提，可抵免；并入边际同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：持有满 12 个月资本利得<strong>50%</strong>评估后计税。</div><div class="d-line"><strong>备注</strong>：全球征税。</div></div></td></tr>
+    <tr><td class="cname">奥地利</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：证券/基金利息股息统一 <strong>27.5%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上 <strong>27.5%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得多数金融产品 <strong>27.5%</strong>。</div></div></td></tr>
+    <tr><td class="cname">巴哈马</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">比利时</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：储蓄利息预提/分离常 <strong>30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提 <strong>30%</strong>（协定可降低）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：多数个人证券资本利得<strong>免税</strong>（非交易商）。</div></div></td></tr>
+    <tr><td class="cname">巴西</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：境外金融产品利息分项 <strong>15%–22.5%</strong>（历史区间）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息公司层已课；个人层规则复杂。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分项。</div><div class="d-line"><strong>备注</strong>：申报要求高。</div></div></td></tr>
+    <tr><td class="cname">文莱</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">保加利亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：统一 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>10%</strong>。</div></div></td></tr>
+    <tr><td class="cname">加拿大</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入联邦与省/地区<strong>个人所得税</strong>应税所得；联邦+省合并<strong>边际</strong>税率因定居地与税阶而异，公开汇总常见约 <strong>20%–53%</strong>（低档约两成起，顶格因省可达逾五成）。</div><div class="d-line"><strong>境外股息/分红</strong>：多数境外股息按<strong>普通收入</strong>申报并适用上述综合边际；符合条件的加拿大居民企业<strong>合格股息（eligible）</strong>可适用<strong>股息税收抵免</strong>（实际税负常低于同等利息）。源国已预提所得税一般可申请<strong>外国税收抵免</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得<strong>50%</strong>计入应税所得后按边际税率计征；对<strong>整笔利得</strong>而言，有效税负约为合并边际之半（随税阶升降）。</div><div class="d-line"><strong>备注</strong>：全球征税；具体税阶与适用税率以联邦及常驻省规定为准；中加税收协定可协调预提与抵免。</div></div></td></tr>
+    <tr><td class="cname">开曼群岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：实际控制人为中国等居民时，该国可能按 <strong>20%</strong> 等征税。</div></div></td></tr>
+    <tr><td class="cname">智利</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入边际 <strong>0%–40%</strong> 或分离。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分离或累进。</div></div></td></tr>
+    <tr><td class="cname">中国内地</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：实践中财产性利息常按 <strong>20%</strong> 申报；协定可优惠。</div><div class="d-line"><strong>境外股息/分红</strong>：港股等境外分红常见按 <strong>20%</strong>；税收协定可降低预提。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：境外金融资产转让价差常见按 <strong>20%</strong> 或依法并入综合所得。</div><div class="d-line"><strong>备注</strong>：居民须就全球所得汇算（次年 3–6 月）；香港账户收益对我方而言属境外所得。</div></div></td></tr>
+    <tr><td class="cname">哥伦比亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提或并入至 <strong>39%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息多层税基。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>10%–20%</strong>。</div></div></td></tr>
+    <tr><td class="cname">哥斯达黎加</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息预提 <strong>15%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>15%</strong>。</div></div></td></tr>
+    <tr><td class="cname">克罗地亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预扣/分项约 <strong>12%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预扣。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>10%–12%</strong>。</div></div></td></tr>
+    <tr><td class="cname">库拉索</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：累进 <strong>9.75%–46%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/利息并入。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得。</div></div></td></tr>
+    <tr><td class="cname">塞浦路斯</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：存款利息国防贡献历史上曾约 <strong>30%</strong>（近年有调整）。</div><div class="d-line"><strong>境外股息/分红</strong>：非定居方案下境外股息可<strong>全免</strong>（条件适用）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：多数个人证券利得 <strong>免税</strong>。</div><div class="d-line"><strong>备注</strong>：非定居规则是关键。</div></div></td></tr>
+    <tr><td class="cname">捷克</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：资本所得 <strong>15%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：证券持有超 <strong>3</strong> 年常<strong>免税</strong>；否则 <strong>15%</strong>。</div></div></td></tr>
+    <tr><td class="cname">丹麦</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：资本收入常 <strong>17%–27%</strong> 固定层 + 高余额附加（简况）。</div><div class="d-line"><strong>境外股息/分红</strong>：股票股息预提后补税。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分项。</div><div class="d-line"><strong>备注</strong>：全球申报。</div></div></td></tr>
+    <tr><td class="cname">爱沙尼亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>20%</strong>（居民常见层）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息分层；上市公司派息常有免或抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>20%</strong> 或免（持有一年等）。</div></div></td></tr>
+    <tr><td class="cname">法罗群岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：丹麦系资本税。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">芬兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：资本所得 <strong>30%/34%</strong>（分层）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>85%</strong> 应税加统一预提或分项规则。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>30%–34%</strong>。</div></div></td></tr>
+    <tr><td class="cname">法国</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：PFU 下与股息、利得一并常约 <strong>30%</strong>（含社会负担部分）。</div><div class="d-line"><strong>境外股息/分红</strong>：同上 PFU <strong>30%</strong>；或选并入综合。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：PFU <strong>30%</strong>；大额可选用累进档。</div><div class="d-line"><strong>备注</strong>：可与香港双边安排协调抵扣。</div></div></td></tr>
+    <tr><td class="cname">德国</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：私人资本收益统一税约 <strong>26.375%</strong>（含团结附加税）。</div><div class="d-line"><strong>境外股息/分红</strong>：上市公司股息常<strong>25%</strong> 加附加后再算 Effective <strong>26.375%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市证券转让一般同 <strong>26.375%</strong>；持满一年有部分免税规则。</div><div class="d-line"><strong>备注</strong>：教堂税地区略增。</div></div></td></tr>
+    <tr><td class="cname">直布罗陀</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：非直境来源 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">希腊</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>15%</strong></div><div class="d-line"><strong>境外股息/分红</strong>：预扣税 <strong>5%</strong>（股息/分红；可抵最终所得税）</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>15%</strong></div><div class="d-line"><strong>备注</strong>：设有<strong>非定居居民</strong>制度：高净值人士可选每年缴 <strong>10 万欧元</strong>统一税，享受境外所得免税（资格与条款严格）。</div></div></td></tr>
+    <tr><td class="cname">格陵兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：个人税 <strong>26%–37%</strong> 有效概况。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">格林纳达</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">根西岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：未汇入一般 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：汇款税基；汇回则按岛内核定（常约 <strong>20%</strong> 固定于部分居民类型）。</div></div></td></tr>
+    <tr><td class="cname">匈牙利</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：资本性利息/股息等常并入 <strong>15%</strong> 扁平税。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得多数情形 <strong>15%</strong>。</div></div></td></tr>
+    <tr><td class="cname">冰岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息与股息分项，税负常约 <strong>22%</strong> 上下。</div><div class="d-line"><strong>境外股息/分红</strong>：股息分项。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得个人常见约 <strong>22%</strong>。</div></div></td></tr>
+    <tr><td class="cname">印度</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入最高边际约 <strong>30%+</strong> 附加费。</div><div class="d-line"><strong>境外股息/分红</strong>：外国股息并入。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股 LTCG 历史上 <strong>10%/12.5%</strong> 等（以现行法为准）。</div><div class="d-line"><strong>备注</strong>：居民全球征税。</div></div></td></tr>
+    <tr><td class="cname">印尼</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提 <strong>20%</strong> 或并入 <strong>5%–35%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：预提 <strong>20%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：并入综合。</div></div></td></tr>
+    <tr><td class="cname">爱尔兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：存款 DIRT <strong>33%</strong>；其他利息并入边际 <strong>20%–40%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提与最终 <strong>33%</strong> 资本利得税并行规则。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>33%</strong>。</div></div></td></tr>
+    <tr><td class="cname">萌岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：未汇回马恩岛 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：属地/汇款判定。</div></div></td></tr>
+    <tr><td class="cname">以色列</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息常 <strong>25%</strong> 或并入。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>25%–30%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>25%</strong> 或边际至 <strong>50%</strong>。</div></div></td></tr>
+    <tr><td class="cname">意大利</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：多数金融利息<strong>26%</strong>；部分储蓄 <strong>20%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息常<strong>26%</strong> 替代税（第一层预提可抵）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得金融商品常<strong>26%</strong>。</div><div class="d-line"><strong>备注</strong>：可选并入综合若更有利。</div></div></td></tr>
+    <tr><td class="cname">日本</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：上市金融商品等分离课税合计约 <strong>20.315%</strong>（含复兴税等）。</div><div class="d-line"><strong>境外股息/分红</strong>：港股股息等常同适用分离课税约 <strong>20.315%</strong>（或综合）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：转让上市股票差价等同理约 <strong>20.315%</strong>；非永久居民规则可能缩小境外范围。</div><div class="d-line"><strong>备注</strong>：可依申报选择分离或与综合所得合并。</div></div></td></tr>
+    <tr><td class="cname">泽西岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：高价值居民有特殊包税/比例税。</div></div></td></tr>
+    <tr><td class="cname">科威特</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">拉脱维亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>20%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>0/10%</strong> 视来源。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>20%</strong>。</div></div></td></tr>
+    <tr><td class="cname">黎巴嫩</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：征管不稳定；名义上全球征税。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div><div class="d-line"><strong>备注</strong>：局势影响执法。</div></div></td></tr>
+    <tr><td class="cname">列支敦士登</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入市镇所得税，边际约个位数至 <strong>~30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息分项。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分项。</div></div></td></tr>
+    <tr><td class="cname">立陶宛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>15%</strong> 或 <strong>20%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>15%–20%</strong>。</div></div></td></tr>
+    <tr><td class="cname">卢森堡</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：分项复杂；被动利息常低税或并入 <strong>0%–42%</strong> 边际。</div><div class="d-line"><strong>境外股息/分红</strong>：股息分项或 <strong>15%</strong> 半额课征等特殊规则。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：六个月规则下上市股利得可免税。</div><div class="d-line"><strong>备注</strong>：高净值建议个案建模。</div></div></td></tr>
+    <tr><td class="cname">马来西亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：境外汇入被动利息：须结合新法与汇入规则；边际可达 <strong>0%–30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：上市证券股息常有<strong>免税</strong>；其他境外分红依汇入与居民身份。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得视资产类型；汇回资本市场利得关注加强。</div><div class="d-line"><strong>备注</strong>：2022 年后对境外被动收入汇入征税范围扩大，须持续关注法令。</div></div></td></tr>
+    <tr><td class="cname">马耳他</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：未汇入<strong>不征</strong>；汇入按 <strong>15%</strong> 或累进。</div><div class="d-line"><strong>境外股息/分红</strong>：未汇入<strong>不征</strong>；汇入部分课税。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：未汇入常<strong>不征</strong>。</div><div class="d-line"><strong>备注</strong>：非定居汇款制核心。</div></div></td></tr>
+    <tr><td class="cname">毛里求斯</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：境外Passive <strong>0%</strong>（个人角度）。</div><div class="d-line"><strong>境外股息/分红</strong>：参与豁免下境外分红常 <strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：境外转让常 <strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：本土来源另论。</div></div></td></tr>
+    <tr><td class="cname">墨西哥</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息预提 <strong>0.08%–20%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提 <strong>10%</strong> + 汇算。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：股票转让常 <strong>10%</strong>。</div></div></td></tr>
+    <tr><td class="cname">蒙特塞拉特岛</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">荷兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：Box 3 对净资产推算收益课税（名义收益率制），有效税负约净资产之 <strong>~1%–2%</strong> 量级（近年改革频繁）。</div><div class="d-line"><strong>境外股息/分红</strong>：Box 2 控股股息等另有 <strong>~24%–28%</strong> 等规则；一般证券投资多在 Box 3。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：个人证券买卖常纳入 Box 3 名义收益而非传统 CGT。</div><div class="d-line"><strong>备注</strong>：具体适用 2025+ 法案版本请咨询当地专业人士。</div></div></td></tr>
+    <tr><td class="cname">新西兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入综合所得；边际 <strong>10.5%–39%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：Fully imputed 等情形除外；境外股息一般并入。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：多数上市证券资本利得<strong>不征税</strong>（除非特定 bright-line 等）。</div><div class="d-line"><strong>备注</strong>：新移民有过渡期境外收入免税（年限与条件限制）。</div></div></td></tr>
+    <tr><td class="cname">挪威</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息等按基数计税，实际税负与边际挂钩。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 RISK 调整后实际边际可到约 <strong>37.84%</strong> 量级。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股票利得类似调节后税率，常见 <strong>22%–37.84%</strong> 区间理解。</div><div class="d-line"><strong>备注</strong>：资本与股利有抵扣/调整系数。</div></div></td></tr>
+    <tr><td class="cname">波兰</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：资本所得 <strong>19%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>19%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>19%</strong>。</div></div></td></tr>
+    <tr><td class="cname">葡萄牙</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：「储蓄」类常 <strong>28%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：境外分红常 <strong>28%</strong>（或并入）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>28%</strong>。</div><div class="d-line"><strong>备注</strong>：NHR 优惠已基本结束。</div></div></td></tr>
+    <tr><td class="cname">卡塔尔</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">罗马尼亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息/股息常 <strong>10%</strong> 或预提。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提 <strong>5%–10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股票利得常 <strong>1%或10%</strong>（持满年限）。</div></div></td></tr>
+    <tr><td class="cname">俄罗斯</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>13%</strong>（居民简况）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提 <strong>13%/15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>13%</strong>（概况；制裁期执行复杂）。</div></div></td></tr>
+    <tr><td class="cname">圣文森特和格林纳丁斯</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">沙特阿拉伯</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：无一般个人所得税。</div></div></td></tr>
+    <tr><td class="cname">塞舌尔</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">新加坡</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：境外产生且未在新加坡收到/视为收到的利息：<strong>常不征税</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：境外股息同上，常<strong>不征税</strong>（属地原则）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>无资本利得税</strong>。</div><div class="d-line"><strong>备注</strong>：若交易被认定为经营或在新加坡收到款项，规则不同。</div></div></td></tr>
+    <tr><td class="cname">斯洛伐克共和国</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>19%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>19%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>19%</strong>。</div></div></td></tr>
+    <tr><td class="cname">斯洛文尼亚</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息等 <strong>25%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>25%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得 <strong>25%</strong>。</div></div></td></tr>
+    <tr><td class="cname">南非</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入边际 <strong>18%–45%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：外国股息抵免后并入。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：CGT：应税部分的 <strong>40%</strong> 乘边际（有效低于 headline）。</div><div class="d-line"><strong>备注</strong>：年度免征额适用。</div></div></td></tr>
+    <tr><td class="cname">西班牙</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：储蓄所得分级约 <strong>19%–28%</strong>（依当年档）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息同储蓄档 <strong>19%–28%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得同档。</div><div class="d-line"><strong>备注</strong>：地区财富税可能叠加（高净值）。</div></div></td></tr>
+    <tr><td class="cname">瑞典</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：存款利息等资本税常 <strong>30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息先公司层预提，个人层补税至约 <strong>30%</strong> 体系。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股票资本利得常 <strong>30%</strong>（一年以上额度内减免）。</div></div></td></tr>
+    <tr><td class="cname">瑞士</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：各州分项；综合个人边际常见约 <strong>20%–40%+</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息收入联邦+州预扣与汇算。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得多数州对个人证券<strong>免税</strong>或低税；因州而异。</div><div class="d-line"><strong>备注</strong>：财富税部分州适用。</div></div></td></tr>
+    <tr><td class="cname">土耳其</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息预提 <strong>15%</strong> 或豁免（政府债等）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息预提 <strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股持满<strong>1</strong>年常<strong>免税</strong>；否则分项税率。</div></div></td></tr>
+    <tr><td class="cname">阿拉伯联合酋长国</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：无联邦个人所得税。</div></div></td></tr>
+    <tr><td class="cname">英国</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：储蓄利息：超过免税额后边际 <strong>20%/40%/45%</strong>（所得税档）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息：津贴后分项税率约 <strong>8.75% / 33.75% / 39.35%</strong>（依所得档位）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：CGT：多数资产净收益 <strong>10%</strong> 或 <strong>20%</strong>（住宅资产更高档）；有年度免税额。</div><div class="d-line"><strong>备注</strong>：全球征税；非定居优惠已改革，境外投资收益一般须全额申报。</div></div></td></tr>
+    <tr><td class="cname">乌拉圭</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入 <strong>0%–36%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：高净值可选名义收益法。</div></div></td></tr>
+    <tr><td class="cname">瓦努阿图</td><td><span class="badge badge-red">CRS 2018起</span></td><td style="font-size:12px;white-space:nowrap;">1.7.2017－31.12.2017</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">韩国</td><td><span class="badge badge-red">CRS 2019起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2018–31.12.2018</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：金融投资利息：分离课税常见约 <strong>15%–20%</strong>（依产品）。</div><div class="d-line"><strong>境外股息/分红</strong>：境外分红：分离或综合；常见档约 <strong>15%–20%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：转让差价：分离课税或综合；边际若综合最高 <strong>45%</strong>。</div><div class="d-line"><strong>备注</strong>：金融所得可选分离申报以锁定税率。</div></div></td></tr>
+    <tr><td class="cname">阿尔巴尼亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>15%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>15%</strong>。</div></div></td></tr>
+    <tr><td class="cname">安道尔</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息分项。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：证券利得常 <strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">安圭拉</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">亚美尼亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>5%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：多数个人 <strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">阿鲁巴</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入累进约 <strong>7.75%–52%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分项。</div></div></td></tr>
+    <tr><td class="cname">阿塞拜疆</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：并入。</div></div></td></tr>
+    <tr><td class="cname">巴林</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">巴巴多斯</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：视居民身份与制度，境外常 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：高净值方案复杂。</div></div></td></tr>
+    <tr><td class="cname">伯利兹</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">百慕达</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">英属维尔京群岛</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：经济实质 + 居民国穿透。</div></div></td></tr>
+    <tr><td class="cname">布基纳法索</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">喀麦隆</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">库克群岛</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">多米尼克</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">多米尼加共和国</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息预提 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：并入至 <strong>25%</strong>。</div></div></td></tr>
+    <tr><td class="cname">萨尔瓦多</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">加蓬</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">格鲁吉亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>5%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>5%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股持满 <strong>1</strong> 年常<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">加纳</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">危地马拉</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>31%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">牙买加</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息预提 <strong>25%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息 <strong>15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得分项。</div></div></td></tr>
+    <tr><td class="cname">哈萨克斯坦</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提 <strong>10%</strong> 或并入 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：证券转让 <strong>10%</strong>（简况）。</div></div></td></tr>
+    <tr><td class="cname">肯尼亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">利比里亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">澳门特别行政区</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：纯粹境外产生且无澳门连结：<strong>一般不征</strong>所得补充税。</div><div class="d-line"><strong>境外股息/分红</strong>：同上，境外分红<strong>一般不纳入</strong>澳门应税所得。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：境外证券交易价差：<strong>一般无</strong>个人资本利得税。</div><div class="d-line"><strong>备注</strong>：若构成澳门来源或汇入用于本地生计，可能触发 <strong>0%–12%</strong> 档累进（个案）。</div></div></td></tr>
+    <tr><td class="cname">马尔代夫</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">马绍尔群岛</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：居民国穿透。</div></div></td></tr>
+    <tr><td class="cname">摩尔多瓦</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>6%–12%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">摩纳哥</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：法国籍：按法国；非法国籍 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">摩洛哥</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>38%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">瑙鲁</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">尼日利亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">纽埃</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">北马其顿</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>15%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>15%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>15%</strong>。</div></div></td></tr>
+    <tr><td class="cname">巴基斯坦</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：预提 <strong>10%–20%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：并入 <strong>35%</strong> 顶。</div></div></td></tr>
+    <tr><td class="cname">巴拿马</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：境外产生未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：未汇入 <strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：汇入则 <strong>0%–25%</strong>。</div></div></td></tr>
+    <tr><td class="cname">巴拉圭</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：实际执行弱；法定约 <strong>10%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">秘鲁</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息 <strong>4.99%–8.75%</strong> 预提等。</div><div class="d-line"><strong>境外股息/分红</strong>：境外股息预提 <strong>9.3%</strong>（简况）。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：二类资本利得 <strong>5%</strong> 或综合。</div></div></td></tr>
+    <tr><td class="cname">菲律宾</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入 <strong>35%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：预提 <strong>10%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：上市股 STT <strong>0.6%</strong>。</div></div></td></tr>
+    <tr><td class="cname">圣基茨和尼维斯</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">圣卢西亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">萨摩亚</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">圣马力诺</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>9%–33%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">塞内加尔</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">圣马丁岛</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：荷/法分治，分别适用。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">特立尼达和多巴哥</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：利息等 <strong>6%–30%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：股息。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：资本利得。</div></div></td></tr>
+    <tr><td class="cname">突尼斯</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">特克斯和凯科斯群岛</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：<strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div></div></td></tr>
+    <tr><td class="cname">乌干达</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：并入居民所得税申报；边际常见约 <strong>15%–40%</strong>（各国税阶不同）。</div><div class="d-line"><strong>境外股息/分红</strong>：股息/分红常预扣 <strong>5%–15%</strong> 或并入综合；可境外税抵免。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：常按 <strong>10%–28%</strong> 固定档或并入综合计税；具体分项依国内法。</div><div class="d-line"><strong>备注</strong>：针对该管辖区<strong>税务居民</strong>取得<strong>香港等地</strong>投资收益后，在<strong>居民国</strong>申报的参考；最终以当地税法与中港协定为准。</div></div></td></tr>
+    <tr><td class="cname">乌克兰</td><td><span class="badge badge-red">CRS 2021起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2020–31.12.2020</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：被动所得表层约 <strong>18%+1.5%</strong> 军事税（简引 <strong>19.5%</strong>）。</div><div class="d-line"><strong>境外股息/分红</strong>：同上框架。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div><div class="d-line"><strong>备注</strong>：战时税法变动频繁。</div></div></td></tr>
+    <tr><td class="cname">厄瓜多尔</td><td><span class="badge badge-red">CRS 2026起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2025－31.12.2025</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：边际 <strong>0%–37%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：同上。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：同上。</div></div></td></tr>
+    <tr><td class="cname">阿曼</td><td><span class="badge badge-red">CRS 2026起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2025－31.12.2025</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：过渡期内多数个人仍 <strong>0%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：<strong>0%</strong>。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：<strong>0%</strong>。</div><div class="d-line"><strong>备注</strong>：个人所得税立法推进中，请关注 Oman 税局更新。</div></div></td></tr>
+    <tr><td class="cname">泰国</td><td><span class="badge badge-red">CRS 2026起</span></td><td style="font-size:12px;white-space:nowrap;">1.1.2025－31.12.2025</td><td style="font-size:12px;min-width:260px;"><div class="crs-tax-detail"><div class="d-line"><strong>境外利息</strong>（香港等地投资产生的利息）：收益<strong>汇入泰国</strong>：并入个税，边际约 <strong>0%–35%</strong>。</div><div class="d-line"><strong>境外股息/分红</strong>：汇入的境外分红同上；境内股息预提 <strong>10%</strong>与境外情形不同。</div><div class="d-line"><strong>境外资本利得</strong>（转让股票、基金等价差）：汇入的资本利得并入综合所得税。</div><div class="d-line"><strong>备注</strong>：不汇入则通常不产生当年度泰国税负（须个案）。</div></div></td></tr>
+
+
+
+
+  </tbody>
+  </table>
+  </div>
+  <div class="note">
+    <strong>重要说明：</strong>本页税制摘要系根据公开资料整理的一般性描述，不构成法律或税务意见；各国税法、协定及征管实践持续变化，实际义务取决于个人居民身份、所得类型、双边税收协定及具体年度。离岸/无个人所得税地区应注意经济实质与实际控制人居民国穿透。请以官方条文及专业顾问意见为准。
+  </div>
+</div>
+
+<script>
+function filterSingle(type, btn) {
+  var btns = document.querySelectorAll('#sg-filter-bar .fbtn');
+  var i;
+  for (i = 0; i < btns.length; i++) btns[i].classList.remove('on');
+  if (btn) btn.classList.add('on');
+  var rows = document.querySelectorAll('#t-sg tbody tr');
+  for (i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    if (type === 'all') {
+      tr.classList.remove('hidden');
+    } else {
+      var f = tr.getAttribute('data-f');
+      if (f !== type) tr.classList.add('hidden');
+      else tr.classList.remove('hidden');
+    }
+  }
+}
+
+function sgFilterClick(e) {
+  var bar = document.getElementById('sg-filter-bar');
+  if (!bar) return;
+  var el = e.target;
+  while (el && el !== bar) {
+    if (el.nodeType === 1 && el.classList && el.classList.contains('fbtn')) {
+      var ft = el.getAttribute('data-filter');
+      if (ft) filterSingle(ft, el);
+      return;
+    }
+    el = el.parentNode;
+  }
+}
+
+function filterCrsTable() {
+  var input = document.getElementById('crs-search');
+  var countEl = document.getElementById('crs-search-count');
+  if (!input || !document.getElementById('t-crs')) return;
+  function norm(s) { return (s || '').replace(/\s+/g, '').toLowerCase(); }
+  function apply() {
+    var q = norm(input.value);
+    var rows = document.querySelectorAll('#t-crs tbody tr');
+    var n = 0;
+    var i;
+    for (i = 0; i < rows.length; i++) {
+      var tr = rows[i];
+      var cell = tr.querySelector('td.cname');
+      if (!cell) {
+        tr.style.display = '';
+        continue;
+      }
+      var ok = !q || norm(cell.textContent || '').indexOf(q) !== -1;
+      tr.style.display = ok ? '' : 'none';
+      if (ok) n++;
+    }
+    if (countEl) countEl.textContent = q ? ('显示 ' + n + ' 条') : ('共 ' + rows.length + ' 个管辖区');
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('search', apply);
+  apply();
+}
+
+function initPageControls() {
+  var fbar = document.getElementById('sg-filter-bar');
+  if (fbar) fbar.addEventListener('click', sgFilterClick, false);
+  try {
+    filterCrsTable();
+  } catch (err) {}
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPageControls);
+} else {
+  initPageControls();
+}
+</script>
+</body>
+</html>
